@@ -66,11 +66,11 @@
 ## Enlace Video DEMO de la App en YouTube (No más de 1 min)
 
 - **Link del video:** 
-
+https://youtube.com/shorts/gnMt7LYuLOI?feature=share
 ---
 
 ## Enlace repositorio en GitHub
 
 - **Link del repo:** 
-
+https://github.com/angeltirado09/El-Mercadito_SmartList
 ---
