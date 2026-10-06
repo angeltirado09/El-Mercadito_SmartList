@@ -69,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const newUser: User = { username, password };
     users.push(newUser);
     await AsyncStorage.setItem('@users', JSON.stringify(users));
+    await AsyncStorage.setItem(`@shopping_list_${username}`, JSON.stringify([]));
     await AsyncStorage.setItem('@active_session', JSON.stringify(newUser));
     setUser(newUser);
     return true;
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2d6a4f" />
+        <ActivityIndicator size="large" color="#6d0d18" />
       </View>
     );
   }
@@ -110,6 +111,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fcf1d5',
   },
 });

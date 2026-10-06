@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -12,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { validateAuthInput } from '../utils/validators';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -27,6 +29,7 @@ type Props = {
 // ============================================================
 export default function LoginScreen({ navigation }: Props) {
   const { login } = useAuth();
+  const { theme } = useTheme();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -45,55 +48,116 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: theme.background }]}
+      edges={['bottom', 'left', 'right']}
+    >
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {/* Logo y título */}
         <View style={styles.logoContainer}>
-          <Text style={styles.logo}>🛒</Text>
-          <Text style={styles.appName}>El Mercadito</Text>
-          <Text style={styles.tagline}>Tu lista de compras inteligente</Text>
+          <View
+            style={[
+              styles.logoWrapper,
+              {
+                borderColor: theme.border,
+                shadowColor: theme.shadowColor,
+              },
+            ]}
+          >
+            <Image
+              source={require('../../assets/images/cart-logo.jpg')}
+              style={styles.logoImage}
+              resizeMode="cover"
+            />
+          </View>
+          <Text style={[styles.appName, { color: theme.text }]}>El Mercadito</Text>
+          <Text style={[styles.tagline, { color: theme.textSecondary }]}>
+            Tu lista de compras inteligente
+          </Text>
         </View>
 
         {/* Formulario */}
-        <View style={styles.card}>
-          <Text style={styles.label}>Usuario</Text>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.card,
+              shadowColor: theme.shadowColor,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.label, { color: theme.text }]}>Usuario</Text>
           <TextInput
             testID="username-input"
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.inputBackground,
+                borderColor: theme.inputBorder,
+                color: theme.inputText,
+              },
+            ]}
             placeholder="Ej: maria123"
-            placeholderTextColor="#adb5bd"
+            placeholderTextColor={theme.inputPlaceholder}
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
             autoCorrect={false}
           />
 
-          <Text style={styles.label}>Contraseña</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Contraseña</Text>
           <TextInput
             testID="password-input"
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.inputBackground,
+                borderColor: theme.inputBorder,
+                color: theme.inputText,
+              },
+            ]}
             placeholder="Mínimo 6 caracteres"
-            placeholderTextColor="#adb5bd"
+            placeholderTextColor={theme.inputPlaceholder}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
 
           {/* Mensaje de error condicional */}
-          {error !== '' && <Text style={styles.errorText}>{error}</Text>}
+          {error !== '' && (
+            <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
+          )}
 
-          <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
-            <Text style={styles.primaryButtonText}>Iniciar sesión</Text>
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: theme.buttonPrimary }]}
+            onPress={handleLogin}
+          >
+            <Text
+              style={[
+                styles.primaryButtonText,
+                { color: theme.buttonPrimaryText },
+              ]}
+            >
+              Iniciar sesión
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={() => navigation.navigate('Register')}
           >
-            <Text style={styles.secondaryButtonText}>¿No tenés cuenta? Registrate</Text>
+            <Text
+              style={[
+                styles.secondaryButtonText,
+                { color: theme.buttonSecondaryText },
+              ]}
+            >
+              ¿No tenés cuenta? Registrate
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -107,7 +171,6 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   container: {
     flex: 1,
@@ -118,62 +181,66 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
-  logo: {
-    fontSize: 64,
+  logoWrapper: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    overflow: 'hidden',
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   appName: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#2d6a4f',
     marginTop: 8,
   },
   tagline: {
     fontSize: 14,
-    color: '#6c757d',
     marginTop: 4,
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 24,
-    shadowColor: '#000',
+    borderWidth: 1,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1b2a1f',
     marginBottom: 6,
   },
   input: {
     borderWidth: 1.5,
-    borderColor: '#ced4da',
     borderRadius: 10,
     padding: 12,
     fontSize: 16,
-    color: '#1b2a1f',
     marginBottom: 16,
-    backgroundColor: '#f8f9fa',
   },
   errorText: {
-    color: '#e63946',
     fontSize: 13,
     marginBottom: 12,
     textAlign: 'center',
     lineHeight: 18,
   },
   primaryButton: {
-    backgroundColor: '#2d6a4f',
     borderRadius: 10,
     padding: 14,
     alignItems: 'center',
     marginTop: 4,
   },
   primaryButtonText: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -183,7 +250,6 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   secondaryButtonText: {
-    color: '#52b788',
     fontSize: 14,
     fontWeight: '600',
   },

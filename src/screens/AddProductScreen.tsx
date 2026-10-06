@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Button,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -13,6 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { validateProductName } from '../utils/validators';
 import { scheduleShoppingReminder } from '../utils/notifications';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -33,6 +34,8 @@ interface Product {
 // Screen
 // ============================================================
 export default function AddProductScreen({ navigation }: Props) {
+  const { user } = useAuth();
+  const { theme, isDark } = useTheme();
   const [productName, setProductName] = useState('');
   const [error, setError] = useState('');
 
@@ -45,15 +48,16 @@ export default function AddProductScreen({ navigation }: Props) {
       return;
     }
 
-    // Agregar producto a AsyncStorage
-    const raw = await AsyncStorage.getItem('@shopping_list');
+    // Agregar producto a AsyncStorage para el usuario activo
+    const storageKey = user?.username ? `@shopping_list_${user.username}` : '@shopping_list';
+    const raw = await AsyncStorage.getItem(storageKey);
     const products: Product[] = raw ? JSON.parse(raw) : [];
     const newProduct: Product = {
       id: Date.now().toString(),
       name: productName.trim(),
     };
     products.push(newProduct);
-    await AsyncStorage.setItem('@shopping_list', JSON.stringify(products));
+    await AsyncStorage.setItem(storageKey, JSON.stringify(products));
 
     // Programar notificación local (dispara en 5 segundos)
     await scheduleShoppingReminder(productName.trim());
@@ -63,21 +67,42 @@ export default function AddProductScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: theme.background }]}
+      edges={['bottom', 'left', 'right']}
+    >
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.card}>
-          <Text style={styles.title}>Nuevo producto</Text>
-          <Text style={styles.subtitle}>¿Qué necesitás comprar?</Text>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.card,
+              shadowColor: theme.shadowColor,
+              borderColor: theme.cardBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.title, { color: theme.text }]}>Nuevo producto</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            ¿Qué necesitás comprar?
+          </Text>
 
-          <Text style={styles.label}>Nombre del producto</Text>
+          <Text style={[styles.label, { color: theme.text }]}>Nombre del producto</Text>
           <TextInput
             testID="product-name-input"
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                backgroundColor: theme.inputBackground,
+                borderColor: theme.inputBorder,
+                color: theme.inputText,
+              },
+            ]}
             placeholder="Ej: Leche descremada, Pan integral..."
-            placeholderTextColor="#adb5bd"
+            placeholderTextColor={theme.inputPlaceholder}
             value={productName}
             onChangeText={setProductName}
             autoFocus
@@ -85,26 +110,58 @@ export default function AddProductScreen({ navigation }: Props) {
           />
 
           {/* Mensaje de error condicional */}
-          {error !== '' && <Text style={styles.errorText}>{error}</Text>}
+          {error !== '' && (
+            <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
+          )}
 
           {/* Aviso de recordatorio */}
-          <View style={styles.reminderContainer}>
-            <Text style={styles.reminderNote}>
+          <View
+            style={[
+              styles.reminderContainer,
+              {
+                backgroundColor: theme.badgeBackground,
+                borderColor: theme.border,
+              },
+            ]}
+          >
+            <Text style={[styles.reminderNote, { color: theme.badgeText }]}>
               📣 Recibirás un recordatorio en 5 segundos al guardar
             </Text>
           </View>
 
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>Guardar producto</Text>
+          <TouchableOpacity
+            style={[styles.saveButton, { backgroundColor: theme.buttonPrimary }]}
+            onPress={handleSave}
+          >
+            <Text
+              style={[
+                styles.saveButtonText,
+                { color: theme.buttonPrimaryText },
+              ]}
+            >
+              Guardar producto
+            </Text>
           </TouchableOpacity>
 
-          <View style={styles.cancelButtonContainer}>
-            <Button
-              title="Cancelar"
-              color="#6c757d"
-              onPress={() => navigation.goBack()}
-            />
-          </View>
+          <TouchableOpacity
+            style={[
+              styles.cancelButton,
+              {
+                borderColor: isDark ? theme.border : theme.border,
+                backgroundColor: isDark ? 'rgba(252, 241, 213, 0.08)' : 'transparent',
+              },
+            ]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text
+              style={[
+                styles.cancelButtonText,
+                { color: isDark ? theme.text : theme.textSecondary },
+              ]}
+            >
+              Cancelar
+            </Text>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -117,7 +174,6 @@ export default function AddProductScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
   },
   container: {
     flex: 1,
@@ -125,75 +181,69 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 24,
-    shadowColor: '#000',
+    borderWidth: 1,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
   },
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#2d6a4f',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6c757d',
     marginBottom: 24,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1b2a1f',
     marginBottom: 8,
   },
   input: {
     borderWidth: 1.5,
-    borderColor: '#ced4da',
     borderRadius: 10,
     padding: 12,
     fontSize: 16,
-    color: '#1b2a1f',
     marginBottom: 16,
-    backgroundColor: '#f8f9fa',
   },
   errorText: {
-    color: '#e63946',
     fontSize: 13,
     marginBottom: 12,
     textAlign: 'center',
   },
   reminderContainer: {
-    backgroundColor: '#d8f3dc',
     borderRadius: 8,
     padding: 10,
     marginBottom: 20,
+    borderWidth: 1,
   },
   reminderNote: {
     fontSize: 13,
-    color: '#2d6a4f',
     textAlign: 'center',
     fontWeight: '500',
   },
   saveButton: {
-    backgroundColor: '#2d6a4f',
     borderRadius: 10,
     padding: 14,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   saveButtonText: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },
-  cancelButtonContainer: {
-    marginTop: 4,
-    borderRadius: 8,
-    overflow: 'hidden',
+  cancelButton: {
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
