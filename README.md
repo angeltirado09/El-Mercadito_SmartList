@@ -90,16 +90,16 @@
 
 ---
 
-## Video DEMO de la App - Parcial 1:
+## Video DEMO de la App - PRIMER parcial:
 
 - **Link del video:**
 https://youtube.com/shorts/gnMt7LYuLOI?feature=share
 
 ---
 
-## Video DEMO de la App - Parcial 2:
+## Video DEMO de la App - SEGUNDO parcial:
 - **Link del video:**
-
+https://youtube.com/shorts/m-TBko-mWO4?feature=share
 ---
 
 ## Enlace repositorio en GitHub
