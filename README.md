@@ -110,3 +110,9 @@ https://github.com/angeltirado09/El-Mercadito_SmartList
 
 ## Imagen de test parcial 1:
 <img width="846" height="312" alt="image" src="https://github.com/user-attachments/assets/41f7608c-9538-40ec-82a3-655486a30f97" />
+
+---
+
+## Imagen de test parcial 2:
+<img width="729" height="312" alt="image" src="https://github.com/user-attachments/assets/5644f79f-9662-46d1-9021-4fd454eab725" />
+
