@@ -106,8 +106,7 @@ https://youtube.com/shorts/gnMt7LYuLOI?feature=share
 
 - **Link del repo:**
 https://github.com/angeltirado09/El-Mercadito_SmartList
-
 ---
 
 ## Imagen de test parcial 1:
-![test npm test](image.png)
+<img width="846" height="312" alt="image" src="https://github.com/user-attachments/assets/41f7608c-9538-40ec-82a3-655486a30f97" />
