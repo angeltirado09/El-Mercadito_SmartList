@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
@@ -12,11 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Ionicons } from '@expo/vector-icons';
+import PermissionsModal from '../components/PermissionsModal';
 import ProductItem from '../components/ProductItem';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { requestNotificationPermissions } from '../utils/notifications';
+import { useProductStore } from '../store/useProductStore';
 
 // ============================================================
 // Types
@@ -25,61 +25,70 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
 };
 
-interface Product {
-  id: string;
-  name: string;
-}
-
 // ============================================================
 // Screen
 // ============================================================
 export default function HomeScreen({ navigation }: Props) {
-  const { user, logout } = useAuth();
+  const {
+    user,
+    logout,
+    permissions,
+    refreshPermissions,
+    requestAllPermissions,
+    requestPermission,
+  } = useAuth();
   const { theme, isDark } = useTheme();
-  const [products, setProducts] = useState<Product[]>([]);
+
+  // Estado Global con Zustand (selectores y acciones del store)
+  const products = useProductStore((state) => state.products);
+  const loadProducts = useProductStore((state) => state.loadProducts);
+  const deleteProductFromStore = useProductStore((state) => state.deleteProduct);
+  const updateProductInStore = useProductStore((state) => state.updateProduct);
+  const clearProducts = useProductStore((state) => state.clearProducts);
+
+  const [permissionsModalVisible, setPermissionsModalVisible] = useState(false);
 
   useEffect(() => {
-    // Solicitar permisos de notificación al montar el componente
-    requestNotificationPermissions();
+    // Actualizar estado de los permisos del dispositivo al montar HomeScreen
+    refreshPermissions();
   }, []);
 
-  // useFocusEffect se ejecuta cada vez que HomeScreen gana foco (al inicio y al volver de AddProductScreen)
+  // Contabilizar permisos denegados y verificar si todos están aprobados
+  const permissionList = Object.values(permissions);
+  const deniedCount = permissionList.filter((p) => p.status === 'denied').length;
+  const allPermissionsGranted =
+    permissionList.length > 0 &&
+    permissionList.every((p) => p.status === 'granted');
+
+  // useFocusEffect sincroniza los productos del usuario activo desde el store global
   useFocusEffect(
     useCallback(() => {
-      const loadProducts = async () => {
-        if (!user?.username) {
-          setProducts([]);
-          return;
-        }
-        const storageKey = `@shopping_list_${user.username}`;
-        const raw = await AsyncStorage.getItem(storageKey);
-        if (raw) {
-          setProducts(JSON.parse(raw));
-        } else {
-          setProducts([]);
-        }
-      };
-
-      loadProducts();
-    }, [user?.username])
+      loadProducts(user?.username ?? null);
+    }, [user?.username, loadProducts])
   );
 
   /**
-   * Elimina un producto por id del estado local y de AsyncStorage para el usuario activo.
+   * Elimina un producto por id a través del store global de Zustand.
    */
-  const deleteProduct = async (id: string) => {
-    const updated = products.filter((p) => p.id !== id);
-    setProducts(updated);
-    if (user?.username) {
-      await AsyncStorage.setItem(
-        `@shopping_list_${user.username}`,
-        JSON.stringify(updated)
-      );
-    }
+  const handleDeleteProduct = async (id: string) => {
+    await deleteProductFromStore(id, user?.username ?? null);
+  };
+
+  /**
+   * Alterna el estado de completado de un producto mediante updateProduct del store global.
+   */
+  const handleToggleProduct = async (id: string) => {
+    const target = products.find((p) => p.id === id);
+    if (!target) return;
+    await updateProductInStore(
+      id,
+      { completed: !target.completed },
+      user?.username ?? null
+    );
   };
 
   const handleLogout = async () => {
-    setProducts([]);
+    clearProducts();
     await logout();
     // AppNavigator redirige automáticamente a Login cuando user === null
   };
@@ -120,32 +129,82 @@ export default function HomeScreen({ navigation }: Props) {
       style={[styles.safeArea, { backgroundColor: theme.background }]}
       edges={['bottom', 'left', 'right']}
     >
-      {/* Cabecera con saludo y botón de cierre de sesión (se invierte en Modo Oscuro) */}
+      {/* Cabecera con saludo, botón con ícono de permisos y botón de cierre de sesión */}
       <View style={[styles.headerCard, { backgroundColor: theme.headerCardBackground }]}>
         <View>
           <Text style={[styles.greeting, { color: theme.headerGreetingText }]}>Bienvenido,</Text>
           <Text style={[styles.username, { color: theme.headerText }]}>{user?.username}</Text>
         </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            testID="open-permissions-btn"
+            accessibilityLabel="Permisos del dispositivo"
+            style={[
+              styles.permissionsButton,
+              {
+                backgroundColor: theme.headerButtonBackground,
+                borderColor: theme.headerButtonBorder,
+              },
+            ]}
+            onPress={() => {
+              refreshPermissions();
+              setPermissionsModalVisible(true);
+            }}
+          >
+            <Ionicons
+              name={
+                allPermissionsGranted
+                  ? 'shield-checkmark-outline'
+                  : 'alert-outline'
+              }
+              size={18}
+              color={theme.headerButtonText}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.logoutButton,
+              {
+                backgroundColor: theme.headerButtonBackground,
+                borderColor: theme.headerButtonBorder,
+              },
+            ]}
+            onPress={handleLogout}
+          >
+            <Text
+              style={[
+                styles.logoutButtonText,
+                { color: theme.headerButtonText },
+              ]}
+            >
+              Cerrar sesión
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Aviso claro si algún permiso fue rechazado */}
+      {deniedCount > 0 && (
         <TouchableOpacity
+          testID="home-denied-permissions-warning"
           style={[
-            styles.logoutButton,
+            styles.deniedAlertBanner,
             {
-              backgroundColor: theme.headerButtonBackground,
-              borderColor: theme.headerButtonBorder,
+              backgroundColor: theme.dangerContainer,
+              borderColor: theme.danger,
             },
           ]}
-          onPress={handleLogout}
+          onPress={() => setPermissionsModalVisible(true)}
         >
-          <Text
-            style={[
-              styles.logoutButtonText,
-              { color: theme.headerButtonText },
-            ]}
-          >
-            Cerrar sesión
+          <Ionicons name="alert-circle-outline" size={18} color={theme.dangerText} />
+          <Text style={[styles.deniedAlertText, { color: theme.dangerText }]}>
+            Tenés {deniedCount}{' '}
+            {deniedCount === 1 ? 'permiso denegado' : 'permisos denegados'}. Tocá
+            acá para ver el detalle y habilitarlos.
           </Text>
         </TouchableOpacity>
-      </View>
+      )}
 
       {/* Contador de productos */}
       <View style={[styles.countContainer, { borderBottomColor: theme.borderLight }]}>
@@ -156,12 +215,22 @@ export default function HomeScreen({ navigation }: Props) {
         </Text>
       </View>
 
-      {/* Lista de productos con FlatList */}
+      {/* Lista de productos con FlatList leída desde Zustand */}
       <FlatList
         data={products}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <ProductItem id={item.id} name={item.name} onDelete={deleteProduct} />
+          <ProductItem
+            id={item.id}
+            name={item.name}
+            completed={item.completed}
+            imageUri={item.imageUri}
+            location={item.location}
+            supplier={item.supplier}
+            calendarReminder={item.calendarReminder}
+            onDelete={handleDeleteProduct}
+            onToggleComplete={handleToggleProduct}
+          />
         )}
         ListEmptyComponent={EmptyList}
         contentContainerStyle={
@@ -184,6 +253,15 @@ export default function HomeScreen({ navigation }: Props) {
           + Agregar producto
         </Text>
       </TouchableOpacity>
+
+      {/* Modal con el estado detallado de cada permiso (Concedido / Denegado / Pendiente) */}
+      <PermissionsModal
+        visible={permissionsModalVisible}
+        permissions={permissions}
+        onClose={() => setPermissionsModalVisible(false)}
+        onRequestSingle={requestPermission}
+        onRequestAll={requestAllPermissions}
+      />
     </SafeAreaView>
   );
 }
@@ -209,6 +287,19 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  permissionsButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+  },
   logoutButton: {
     borderRadius: 8,
     paddingVertical: 8,
@@ -218,6 +309,23 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  deniedAlertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  deniedAlertText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
   },
   countContainer: {
     paddingHorizontal: 16,

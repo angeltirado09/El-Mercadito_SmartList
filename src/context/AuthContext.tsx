@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native';
+import {
+  createInitialPermissionsMap,
+  DevicePermissionsMap,
+  DeviceResource,
+  getAllDevicePermissions,
+  PermissionDetail,
+  requestAllDevicePermissions,
+  requestResourcePermission,
+} from '../utils/permissions';
 
 // ============================================================
 // Types
@@ -12,9 +21,13 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  permissions: DevicePermissionsMap;
   login: (username: string, password: string) => Promise<boolean>;
   register: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  refreshPermissions: () => Promise<DevicePermissionsMap>;
+  requestAllPermissions: () => Promise<DevicePermissionsMap>;
+  requestPermission: (resource: DeviceResource) => Promise<PermissionDetail>;
 }
 
 // ============================================================
@@ -22,9 +35,14 @@ interface AuthContextType {
 // ============================================================
 export const AuthContext = createContext<AuthContextType>({
   user: null,
+  permissions: createInitialPermissionsMap(),
   login: async () => false,
   register: async () => false,
   logout: async () => {},
+  refreshPermissions: async () => createInitialPermissionsMap(),
+  requestAllPermissions: async () => createInitialPermissionsMap(),
+  requestPermission: async (resource: DeviceResource) =>
+    createInitialPermissionsMap()[resource],
 });
 
 // ============================================================
@@ -33,33 +51,93 @@ export const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState<DevicePermissionsMap>(
+    createInitialPermissionsMap
+  );
 
-  // Verificar sesión activa al montar la app
+  // Verificar sesión activa al montar la app y al volver de Configuración (AppState active)
   useEffect(() => {
     AsyncStorage.getItem('@active_session')
-      .then((data) => {
-        if (data) setUser(JSON.parse(data));
+      .then(async (data) => {
+        if (data) {
+          setUser(JSON.parse(data));
+          const currentPerms = await getAllDevicePermissions();
+          setPermissions(currentPerms);
+        }
       })
       .finally(() => setLoading(false));
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        getAllDevicePermissions()
+          .then((updated) => setPermissions(updated))
+          .catch(() => {});
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   /**
-   * Busca el usuario en @users y guarda la sesión activa en @active_session.
+   * Actualiza el mapa de estados de permisos consultando al sistema operativo.
+   */
+  const refreshPermissions = async (): Promise<DevicePermissionsMap> => {
+    const updated = await getAllDevicePermissions();
+    setPermissions(updated);
+    return updated;
+  };
+
+  /**
+   * Solicita todos los permisos del dispositivo y actualiza el estado global.
+   */
+  const requestAllPermissions = async (): Promise<DevicePermissionsMap> => {
+    const updated = await requestAllDevicePermissions({ showSummaryAlert: true });
+    setPermissions(updated);
+    return updated;
+  };
+
+  /**
+   * Solicita el permiso de un único recurso antes de utilizarlo y actualiza el estado.
+   */
+  const requestPermission = async (
+    resource: DeviceResource
+  ): Promise<PermissionDetail> => {
+    const detail = await requestResourcePermission(resource, {
+      showDeniedAlert: true,
+    });
+    setPermissions((prev) => ({
+      ...prev,
+      [resource]: detail,
+    }));
+    return detail;
+  };
+
+  /**
+   * Busca el usuario en @users, guarda la sesión activa en @active_session
+   * y solicita los permisos de acceso a recursos del dispositivo al iniciar sesión.
    */
   const login = async (username: string, password: string): Promise<boolean> => {
     const raw = await AsyncStorage.getItem('@users');
     const users: User[] = raw ? JSON.parse(raw) : [];
     const found = users.find(
-      (u) => u.username === username && u.password === password,
+      (u) => u.username === username && u.password === password
     );
     if (!found) return false;
     await AsyncStorage.setItem('@active_session', JSON.stringify(found));
     setUser(found);
+
+    // Solicitar permisos del dispositivo al iniciar sesión
+    const perms = await requestAllDevicePermissions({ showSummaryAlert: true });
+    setPermissions(perms);
+
     return true;
   };
 
   /**
-   * Registra un nuevo usuario en @users e inicia sesión automáticamente.
+   * Registra un nuevo usuario en @users, inicia sesión automáticamente
+   * y solicita los permisos de acceso a recursos del dispositivo al registrarse.
    */
   const register = async (username: string, password: string): Promise<boolean> => {
     const raw = await AsyncStorage.getItem('@users');
@@ -72,6 +150,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(`@shopping_list_${username}`, JSON.stringify([]));
     await AsyncStorage.setItem('@active_session', JSON.stringify(newUser));
     setUser(newUser);
+
+    // Solicitar permisos del dispositivo al registrarse
+    const perms = await requestAllDevicePermissions({ showSummaryAlert: true });
+    setPermissions(perms);
+
     return true;
   };
 
@@ -93,7 +176,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        permissions,
+        login,
+        register,
+        logout,
+        refreshPermissions,
+        requestAllPermissions,
+        requestPermission,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
